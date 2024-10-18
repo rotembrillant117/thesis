@@ -3,9 +3,10 @@
 # English and Spanish have lots of false friends words that fall under that catagory, but, the words themselves seem to be spelled quite differently
 # English-German https://en.wiktionary.org/wiki/Appendix:False_friends_between_English_and_German
 # English-French https://en.wiktionary.org/wiki/Appendix:False_friends_between_English_and_French
-
+from fastjsonschema.indent import indent
 from transformers import pipeline
 import json
+import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import datasets as ds
 import pandas as pd
@@ -36,7 +37,7 @@ def ds_to_json(data, file_name):
     :param file_name: the file name
     :return:
     """
-    data.to_json(file_name)
+    data.to_json(file_name, orient='records', lines=False, indent=4)
 
 
 def lower_case_data(dataset):
@@ -52,10 +53,10 @@ def lower_case_data(dataset):
 def ff_filter(row, col1, col2):
     return row[col1] == row[col2]
     
-def generate_sentence(word, language, generator, sentence_length=100):
+def generate_sentence(word, language, generator, sentence_length=50):
     prompt = f"Write a sentence in {language} using the word '{word}'"
     # response is a list of dictionaries
-    response = generator(text_inputs=prompt, max_length=sentence_length)
+    response = generator(prompt=prompt, max_length=sentence_length)[0]['generated_text']
     return response
 
 
@@ -67,7 +68,7 @@ if __name__ == '__main__':
     # Loading and Saving the different datasets: english dataset, german dataset, false friends english-german
     # Preprocessing on the datasets
     if preprocess_and_dl:
-        row_limit = 1000000
+        row_limit = 50000
         split = f"train[:{row_limit}]"
         
         en_ds = get_dataset("Salesforce/wikitext", split, "wikitext-103-raw-v1")
@@ -80,10 +81,18 @@ if __name__ == '__main__':
 
         ff_en_ger = get_dataset("aari1995/false_friends_en_de", split)
         ff_en_ger = ff_en_ger.map(lower_case_data)
-        ff_en_ger = ff_en_ger.rename_column("Sentence", "Ger Sentence")
+        ff_en_ger = ff_en_ger.rename_column("Sentence", "German Sentence")
         # Taking only subset of FF and filter out words that are not written exactly the same
-        cols = ["False Friend", "Correct English Translation", "Wrong English Translation", "Ger Sentence"]
+        cols = ["False Friend", "Correct English Translation", "Wrong English Translation", "German Sentence"]
         ff_en_ger = ff_en_ger.select_columns(cols)
         ff_en_ger = ff_en_ger.filter(lambda row: ff_filter(row, "False Friend", "Wrong English Translation"))
+        ff_en_ger = ds.Dataset.from_pandas(ff_en_ger.to_pandas().drop_duplicates(subset=["False Friend"]))
+        # generator = pipeline('text-generation', model='EleutherAI/gpt-neo-2.7B')
+        # ff_en_sentences = []
+        # for row in ff_en_ger:
+        #     ff_word = row["False Friend"]
+        #     res = generate_sentence(ff_word, "English", generator)
+        #     print(res)
+        #     ff_en_sentences.append(res)
         ds_to_json(ff_en_ger, "ff_en_ger_train.json")
 
