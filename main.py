@@ -64,7 +64,7 @@ if __name__ == '__main__':
     
     unk_token = "<UNK>"  # token for unknown words
     spl_tokens = ["<UNK>", "<SEP>", "<MASK>", "<CLS>"]  # special tokens
-    preprocess_and_dl = True
+    preprocess_and_dl = False
     # Loading and Saving the different datasets: english dataset, german dataset, false friends english-german
     # Preprocessing on the datasets
     if preprocess_and_dl:
@@ -87,12 +87,10 @@ if __name__ == '__main__':
         ff_en_ger = ff_en_ger.select_columns(cols)
         ff_en_ger = ff_en_ger.filter(lambda row: ff_filter(row, "False Friend", "Wrong English Translation"))
         ff_en_ger = ds.Dataset.from_pandas(ff_en_ger.to_pandas().drop_duplicates(subset=["False Friend"]))
-        # generator = pipeline('text-generation', model='EleutherAI/gpt-neo-2.7B')
-        # ff_en_sentences = []
-        # for row in ff_en_ger:
-        #     ff_word = row["False Friend"]
-        #     res = generate_sentence(ff_word, "English", generator)
-        #     print(res)
-        #     ff_en_sentences.append(res)
+        with open("ff_eng_sentences.txt") as f:
+            eng_sentences = f.read().splitlines()
+        ff_en_ger = ff_en_ger.add_column(name="English Sentence", column=eng_sentences)
         ds_to_json(ff_en_ger, "ff_en_ger_train.json")
+        
+    
 
